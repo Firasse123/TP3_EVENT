@@ -6,49 +6,73 @@ import {
   Patch,
   Post,
   Version,
+  Delete,
+  Get,
 } from '@nestjs/common';
 import { SkillsService } from './skills.service';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { SkillEntity } from './entities/skill.entity';
 import { GenericController } from '../common/db/generic-crud.controller';
 import { UpdateSkillDto } from './dto/update-skill.dto';
-import { FindOptionsWhere, QueryDeepPartialEntity, UpdateResult } from 'typeorm';
+import { UpdateResult} from 'typeorm';
+
 import { UpdateByCriteriaSkillDto } from './dto/update-by-criteria-skill.dto';
 
 @Controller('skills')
-export class SkillsController extends GenericController<
-  SkillEntity,
-  CreateSkillDto,
-  UpdateSkillDto
-> {
+export class SkillsController extends GenericController<SkillEntity> {
   constructor(private readonly skillsService: SkillsService) {
     super(skillsService);
   }
 
-  @Post()
-  override create(@Body() dto: CreateSkillDto): Promise<SkillEntity> {
-    return super.create(dto);
+  @Get()
+  findAll() {
+    return this.skillsService.findAll();
   }
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.skillsService.findOne(id);
+  }
+
+  @Post()
+  create(@Body() dto: CreateSkillDto): Promise<SkillEntity> {
+    return this.skillsService.create(dto);
+  }
+
 
   @Version('1')
   @Patch(':id')
-  override update(
+  update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateSkillDto,
   ): Promise<SkillEntity> {
-    return super.update(id, dto);
+    return this.skillsService.update(id, dto);
   }
+
 
   @Version('2')
   @Patch()
-  override updateByCriteria(
+  updateByCriteria(
     @Body() body: UpdateByCriteriaSkillDto,
   ): Promise<UpdateResult> {
-    const { criteria, dto } = body;
-
     return this.skillsService.updateByCriteria(
-      criteria as FindOptionsWhere<SkillEntity>,
-      dto as QueryDeepPartialEntity<SkillEntity>,
+      body.criteria,
+      body.dto,
     );
+  }
+
+  @Delete(':id')
+  delete(@Param('id', ParseIntPipe) id: number) {
+    return this.skillsService.softDelete(id);
+  }
+
+  @Patch(':id/restore')
+  restore(@Param('id', ParseIntPipe) id: number) {
+    return this.skillsService.restore(id);
+  }
+
+  @Delete(':id/hard')
+  hardDelete(@Param('id', ParseIntPipe) id: number) {
+    return this.skillsService.delete(id);
   }
 }
