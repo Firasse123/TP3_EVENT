@@ -13,32 +13,32 @@ import { SkillEntity } from '../../skills/entities/skill.entity';
 @Entity('cv')
 export class CvEntity extends TimeStampEntity {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
   @Column({
     length: 50,
   })
-  name: string;
+  name!: string;
 
   @Column({
     length: 50,
   })
-  firstname: string;
+  firstname!: string;
   @Column()
-  age: number;
+  age!: number;
   @Column({
     unique: true,
   })
-  cin: number;
+  cin!: number;
   @Column()
-  job: string;
+  job!: string;
   @Column({ nullable: true })
-  path: string;
+  path!: string;
   //pour chaque user va chercher les cvs correspondants
   @ManyToOne(() => UserEntity, (user) => user.cvs, {
     nullable: false,
     onDelete: 'CASCADE',
   })
-  user: UserEntity;
+  user!: UserEntity;
   @ManyToMany(() => SkillEntity, (skill) => skill.cvs, {
     eager: false,
     cascade: false,
@@ -54,5 +54,5 @@ export class CvEntity extends TimeStampEntity {
       referencedColumnName: 'id',
     },
   })
-  skills: SkillEntity[];
+  skills!: SkillEntity[];
 }

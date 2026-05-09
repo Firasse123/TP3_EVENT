@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   Delete,
+  Req
 } from '@nestjs/common';
 import { CvsService } from './cvs.service';
 import { CvEntity } from './entities/cv.entity';
@@ -16,10 +17,14 @@ import { UpdateCvDto } from './dto/update-cv.dto';
 import { GenericController } from '../common/db/generic-crud.controller';
 import { StatParamDto } from './dto/stat-param-cv.dto';
 import { UpdateByCriteriaCvDto } from './dto/update-by-criteria-cv.dto';
+import { fromEvent, Observable } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Sse } from '@nestjs/common';
 
 @Controller('cvs')
 export class CvsController extends GenericController<CvEntity> {
-  constructor(private readonly cvsService: CvsService) {
+  constructor(private readonly cvsService: CvsService , private readonly eventEmitter: EventEmitter2) {
     super(cvsService);
   }
 
@@ -33,6 +38,35 @@ export class CvsController extends GenericController<CvEntity> {
     return this.cvsService.statCvNumberByAge(
       query.min,
       query.max,
+    );
+  }
+  
+  @Sse('sse')
+  sse(@Req() req): Observable<MessageEvent> {
+    let user = (req as any).user as { id: number; role: string } | undefined;
+
+    if (!user) {
+      const roleQuery = typeof req.query.role === 'string' ? req.query.role : undefined;
+      const userIdQuery = typeof req.query.userId === 'string' ? req.query.userId : undefined;
+      const parsedUserId = userIdQuery ? Number(userIdQuery) : undefined;
+      const role = roleQuery === 'admin' ? 'admin' : 'user';
+
+      if (role === 'admin') {
+        user = { id: parsedUserId ?? 1, role: 'admin' };
+      } else if (parsedUserId && !Number.isNaN(parsedUserId)) {
+        user = { id: parsedUserId, role: 'user' };
+      } else {
+        user = { id: 1, role: 'admin' };
+      }
+    }
+
+    return fromEvent(this.eventEmitter, 'cv.*').pipe(
+      filter((event: any) =>
+        user.role === 'admin' || event.cv?.user?.id === user.id
+      ),
+      map((event: any) =>
+        new MessageEvent(event.operationType, { data: event })
+      ),
     );
   }
 

@@ -1,98 +1,194 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Curriculum Vitae API (NestJS)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+This repository is a NestJS REST API for managing users, CVs, and skills. It uses MySQL with TypeORM, global validation pipes, and URI-based API versioning. The README is intentionally comprehensive so it can be passed to an LLM and used as a full project context snapshot.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tech stack
 
-## Description
+- Node.js + TypeScript
+- NestJS 11
+- MySQL 8+ (via `mysql2`)
+- TypeORM 0.3
+- class-validator + class-transformer
+- @nestjs/event-emitter (used to emit `cv.created`)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Project structure
 
-## Project setup
+- `src/app.module.ts`: root module, config, TypeORM, event emitter
+- `src/main.ts`: app bootstrap, validation, versioning
+- `src/common/db`: generic CRUD service/controller + date filter DTO
+- `src/users`: users module, controller, service, DTOs, entity
+- `src/cvs`: CVs module, controller, service, DTOs, entity
+- `src/skills`: skills module, controller, service, DTOs, entity
+- `src/standalone/seed.ts`: seed script using @ngneat/falso
 
-```bash
-$ npm install
+## Runtime behavior
+
+- Global validation pipe with:
+  - `whitelist: true` (strip unknown properties)
+  - `forbidNonWhitelisted: true` (reject unknown properties)
+  - `transform: true` (auto-transform payloads)
+- API versioning: URI based (`/v1/...`, `/v2/...`)
+- TypeORM `synchronize: true` (auto-sync schema from entities)
+
+## Environment variables
+
+Create a `.env` file at the repo root:
+
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_password
+DB_NAME=tp3
+PORT=3000
 ```
 
-## Compile and run the project
+## Database model
+
+### UserEntity (`user` table)
+
+- `id`: number (PK)
+- `username`: string (unique)
+- `email`: string (unique)
+- `password`: string
+- `cvs`: OneToMany -> `CvEntity`
+
+### CvEntity (`cv` table)
+
+- `id`: number (PK)
+- `firstname`: string
+- `name`: string
+- `age`: number
+- `cin`: number (unique)
+- `job`: string
+- `path`: string | null
+- `user`: ManyToOne -> `UserEntity` (required, cascade on delete)
+- `skills`: ManyToMany -> `SkillEntity` via `cv_skills`
+
+### SkillEntity (`skill` table)
+
+- `id`: number (PK)
+- `designation`: string
+- `cvs`: ManyToMany -> `CvEntity`
+
+### Soft delete and timestamps
+
+All entities extend `TimeStampEntity`:
+
+- `createdAt`, `updatedAt`
+- `deletedAt` (soft delete)
+- `version`
+
+## API summary
+
+Base URL: `http://localhost:3000`
+
+### App
+
+- `GET /` -> returns a hello string
+
+### Users (`/users`)
+
+- `POST /users` -> create user
+- `GET /users` -> list all (includes soft-deleted)
+- `GET /users/:id` -> get by id (includes soft-deleted)
+- `PATCH /users/:id` -> update by id
+- `PATCH /v2/users` -> update by criteria (versioned)
+- `DELETE /users/:id` -> soft delete
+- `PATCH /users/:id/restore` -> restore soft-deleted
+- `DELETE /users/:id/hard` -> hard delete
+- `GET /users/filter/date` -> filter by created/updated/deleted date
+
+### CVs (`/cvs`)
+
+- `GET /cvs` -> list all (includes soft-deleted)
+- `GET /cvs/:id` -> get by id (includes soft-deleted)
+- `POST /cvs` -> create CV
+- `PATCH /cvs/:id` -> update by id
+- `PATCH /cvs` -> update by criteria
+- `DELETE /cvs/:id` -> soft delete
+- `PATCH /cvs/:id/restore` -> restore soft-deleted
+- `DELETE /cvs/:id/hard` -> hard delete
+- `GET /cvs/filter/date` -> filter by created/updated/deleted date
+- `GET /cvs/stats?min=18&max=60` -> count CVs grouped by age in range
+
+### Skills (`/skills`)
+
+- `GET /skills` -> list all (includes soft-deleted)
+- `GET /skills/:id` -> get by id (includes soft-deleted)
+- `POST /skills` -> create skill
+- `PATCH /v1/skills/:id` -> update by id (versioned)
+- `PATCH /v2/skills` -> update by criteria (versioned)
+- `DELETE /skills/:id` -> soft delete
+- `PATCH /skills/:id/restore` -> restore soft-deleted
+- `DELETE /skills/:id/hard` -> hard delete
+- `GET /skills/filter/date` -> filter by created/updated/deleted date
+
+## DTOs and validation
+
+### User DTOs
+
+- `CreateUserDto`: `username`, `email`, `password` (all required)
+- `UpdateUserDto`: partial of `CreateUserDto`
+- `UpdateByCriteriaUserDto`: `{ criteria, dto }`
+
+### CV DTOs
+
+- `CreateCvDto`:
+  - `firstname`, `name`, `job` (required strings)
+  - `age` (number, 15-70)
+  - `cin` (number, 8 digits)
+  - `path` (optional)
+- `UpdateCvDto`: partial of `CreateCvDto`
+- `UpdateByCriteriaCvDto`: `{ criteria, dto }`
+- `StatParamDto`: optional `min`/`max` numbers for stats query
+
+### Skill DTOs
+
+- `CreateSkillDto`: `designation` (min length 2)
+- `UpdateSkillDto`: partial of `CreateSkillDto`
+- `UpdateByCriteriaSkillDto`: `{ criteria, dto }`
+
+### Date filter DTO
+
+- `key`: one of `createdAt`, `updatedAt`, `deletedAt`
+- `minDate`, `maxDate`: optional ISO dates
+
+## Business rules
+
+- Users: `email` and `username` must be unique. The service validates uniqueness on create/update.
+- CVs: `cin` must be unique. The service validates on create/update.
+- Soft delete is used by default, with explicit restore and hard delete routes.
+- `cv.created` event is emitted when a CV is created.
+
+## Seed data
+
+There is a seed script that creates demo data:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm run seed:db
 ```
 
-## Run tests
+It creates:
+
+- 5 skills
+- 3 users
+- 10 CVs linked to random users and skills
+
+## Scripts
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run start       # start
+npm run start:dev   # watch mode
+npm run build       # build
+npm run test        # unit tests
+npm run test:e2e    # e2e tests
+npm run seed:db     # seed DB
 ```
 
-## Deployment
+## Notes for LLM usage
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- The database schema is derived from TypeORM entities at startup (`synchronize: true`).
+- All list/find endpoints include soft-deleted rows (`withDeleted: true`).
+- Versioned endpoints use URI versioning (`/v1` and `/v2`).
+- Routes in controllers extend a generic CRUD controller that adds `GET /filter/date`.

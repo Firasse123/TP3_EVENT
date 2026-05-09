@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CV SSE — Test Frontend</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; color: #111; padding: 1.5rem; max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 18px; margin-bottom: 12px; }
+    label { font-size: 12px; color: #555; display: block; margin: 10px 0 4px; }
+    input, select { width: 100%; font-size: 14px; padding: 6px 8px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .actions { margin: 12px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+    button { font-size: 13px; padding: 6px 12px; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .badge { font-size: 12px; padding: 2px 8px; border: 1px solid #ccc; }
+    .log { margin-top: 12px; border: 1px solid #ddd; padding: 8px; height: 280px; overflow: auto; font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+
+  <h1>CV SSE — Test</h1>
+  <div>
+    Statut: <span class="badge" id="status-badge">En attente</span>
+  </div>
+
+  <label>URL du serveur</label>
+  <input type="text" id="server-url" value="http://localhost:3000" />
+
+  <div class="row">
+    <div>
+      <label>Role</label>
+      <select id="role-select">
+        <option value="admin">admin</option>
+        <option value="user">user</option>
+      </select>
+    </div>
+    <div>
+      <label>User ID</label>
+      <input type="number" id="user-id" value="1" min="1" />
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="btn-connect" onclick="connect()">Connecter</button>
+    <button id="btn-disconnect" onclick="disconnect()" disabled>Déconnecter</button>
+    <button onclick="clearLog()">Vider le log</button>
+  </div>
+
+  <div class="log" id="log-stream">En attente d'evenements...</div>
+
+  <script>
+    let es = null;
+    let count = 0;
+
+    function getBase() {
+      return document.getElementById('server-url').value.replace(/\/$/, '');
+    }
+
+    function connect() {
+      const base = getBase();
+      const role = document.getElementById('role-select').value;
+      const userId = document.getElementById('user-id').value;
+      let url = base + '/cvs/sse';
+      const params = new URLSearchParams();
+      if (role) params.set('role', role);
+      if (userId) params.set('userId', userId);
+      const qs = params.toString();
+      if (qs) url += '?' + qs;
+      es = new EventSource(url);
+
+      es.onopen = () => {
+        setBadge('connected');
+        document.getElementById('btn-connect').disabled = true;
+        document.getElementById('btn-disconnect').disabled = false;
+        addLog('connected', 'Connexion ouverte', 'En attente d\'événements CV...');
+      };
+
+      es.onmessage = (e) => {
+        handleSseEvent('message', e.data);
+      };
+
+      ['cv.created', 'cv.updated', 'cv.softDeleted', 'cv.restored', 'cv.hardDeleted'].forEach(t => {
+        es.addEventListener(t, (e) => {
+          handleSseEvent(t, e.data);
+        });
+      });
+
+      es.onerror = () => {
+          const state = es ? es.readyState : 2;
+          if (state === 0) {
+            setBadge('reconnecting');
+            addLog('error', 'Reconnexion...', 'La connexion SSE est en cours de reconnexion.');
+            return;
+          }
+          setBadge('disconnected');
+          addLog('error', 'Erreur de connexion',
+            'Impossible de se connecter. Si vous ouvrez le fichier en file://, servez-le via un serveur HTTP pour eviter CORS.');
+      };
+    }
+
+    function disconnect() {
+      if (es) { es.close(); es = null; }
+      setBadge('waiting');
+      document.getElementById('btn-connect').disabled = false;
+      document.getElementById('btn-disconnect').disabled = true;
+      addLog('error', 'Déconnecté', 'Connexion SSE fermée manuellement.');
+    }
+
+    function handleSseEvent(eventName, rawData) {
+      try {
+        const data = JSON.parse(rawData);
+        const typeForUi = eventName === 'message' ? (data.operationType || 'EVENT') : eventName;
+        const info = mapEventType(typeForUi);
+        addLog(info.className, info.label, JSON.stringify(data, null, 2));
+      } catch {
+        const info = mapEventType(eventName);
+        addLog(info.className, info.label, rawData);
+      }
+    }
+
+    function addLog(type, label, detail) {
+      const stream = document.getElementById('log-stream');
+      count++;
+      const now = new Date().toLocaleTimeString('fr-FR');
+      const line = `[${now}] ${label}: ${detail}`;
+      if (count === 1 || stream.textContent === "En attente d'evenements...") {
+        stream.textContent = line;
+      } else {
+        stream.textContent = line + "\n" + stream.textContent;
+      }
+    }
+
+    function clearLog() {
+      const stream = document.getElementById('log-stream');
+      stream.textContent = "En attente d'evenements...";
+      count = 0;
+    }
+
+    function mapEventType(eventType) {
+      switch (eventType) {
+        case 'cv.created':
+          return { className: 'CREATE', label: 'CREATE' };
+        case 'cv.updated':
+          return { className: 'UPDATE', label: 'UPDATE' };
+        case 'cv.softDeleted':
+          return { className: 'SOFT_DELETE', label: 'SOFT_DELETE' };
+        case 'cv.restored':
+          return { className: 'RESTORE', label: 'RESTORE' };
+        case 'cv.hardDeleted':
+          return { className: 'HARD_DELETE', label: 'HARD_DELETE' };
+        default:
+          return { className: 'EVENT', label: eventType || 'EVENT' };
+      }
+    }
+
+    function setBadge(state) {
+      const b = document.getElementById('status-badge');
+      b.className = 'badge';
+      if (state === 'connected')    { b.classList.add('badge-connected');    b.textContent = 'Connecté'; }
+        else if (state === 'reconnecting') { b.classList.add('badge-waiting'); b.textContent = 'Reconnexion...'; }
+        else if (state === 'disconnected') { b.classList.add('badge-disconnected'); b.textContent = 'Déconnecté'; }
+      else                          { b.classList.add('badge-waiting');      b.textContent = 'En attente'; }
+    }
+  </script>
+
+</body>
+</html>

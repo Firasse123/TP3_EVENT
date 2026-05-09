@@ -1,4 +1,7 @@
 import {
+  ArrayUnique,
+  IsArray,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -11,29 +14,41 @@ import { Type } from 'class-transformer';
 export class CreateCvDto {
   @IsNotEmpty()
   @IsString()
-  firstname: string;
+  firstname!: string;
 
   @IsNotEmpty()
   @IsString()
-  name: string;
+  name!: string;
 
   @Type(() => Number)
   @IsNumber()
   @Min(15)
   @Max(70)
-  age: number;
+  age!: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(10000000)
   @Max(99999999)
-  cin: number;
+  cin!: number;
 
   @IsNotEmpty()
   @IsString()
-  job: string;
+  job!: string;
 
   @IsOptional()
   @IsString()
   path?: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  userId!: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  skillIds?: number[];
 }
