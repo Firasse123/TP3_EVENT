@@ -18,8 +18,11 @@ This repository is a NestJS REST API for managing users, CVs, and skills. It use
 - `src/common/db`: generic CRUD service/controller + date filter DTO
 - `src/users`: users module, controller, service, DTOs, entity
 - `src/cvs`: CVs module, controller, service, DTOs, entity
+- `src/cv-history`: CV history module, controller, service, entity, events
 - `src/skills`: skills module, controller, service, DTOs, entity
+- `src/messages`: WebSocket gateway for chat features
 - `src/standalone/seed.ts`: seed script using @ngneat/falso
+- `src/webhooks`: webhook endpoints, listener, service, DTOs, entity
 
 ## Runtime behavior
 
@@ -29,6 +32,9 @@ This repository is a NestJS REST API for managing users, CVs, and skills. It use
   - `transform: true` (auto-transform payloads)
 - API versioning: URI based (`/v1/...`, `/v2/...`)
 - TypeORM `synchronize: true` (auto-sync schema from entities)
+- Event-driven CV history: CV create/update/delete/restore actions emit events that are stored in `cv_history`
+- Webhooks: CV history events can be forwarded to external systems via webhook endpoints
+- WebSockets: real-time chat updates and notifications via Socket.IO gateway
 
 ## Environment variables
 
@@ -70,6 +76,14 @@ PORT=3000
 - `id`: number (PK)
 - `designation`: string
 - `cvs`: ManyToMany -> `CvEntity`
+
+### CvHistoryEntity (`cv_history` table)
+
+- `id`: number (PK)
+- `operationType`: enum (CREATE, UPDATE, SOFT_DELETE, RESTORE, HARD_DELETE)
+- `operationDate`: date
+- `cvId`: number | null (FK to `cv`)
+- `performedById`: number | null (FK to `user`)
 
 ### Soft delete and timestamps
 
@@ -160,6 +174,8 @@ Base URL: `http://localhost:3000`
 - CVs: `cin` must be unique. The service validates on create/update.
 - Soft delete is used by default, with explicit restore and hard delete routes.
 - `cv.created` event is emitted when a CV is created.
+- CV lifecycle operations emit events that are persisted to `cv_history`.
+- Webhook listeners can react to CV history events for external integrations.
 
 ## Seed data
 
@@ -192,3 +208,4 @@ npm run seed:db     # seed DB
 - All list/find endpoints include soft-deleted rows (`withDeleted: true`).
 - Versioned endpoints use URI versioning (`/v1` and `/v2`).
 - Routes in controllers extend a generic CRUD controller that adds `GET /filter/date`.
+- Event-driven CV history is central to auditability and webhook notifications.

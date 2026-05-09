@@ -4,20 +4,20 @@ import { Column, Entity, PrimaryGeneratedColumn, CreateDateColumn } from 'typeor
 export class WebhookEndpointEntity {
 
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  url: string;
+  url!: string;
 
   @Column()
-  secret: string;
+  secret!: string;
 
   @Column({ default: 'cv.created' })
-  event: string;
+  event!: string;
 
   @Column({ default: true })
-  active: boolean;
+  active!: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 }

@@ -35,6 +35,9 @@ export class CvHistoryEntity {
   @JoinColumn({ name: 'cvId' })
   cv!: CvEntity;
 
+  @Column({ type: 'json', nullable: true })
+  snapshot!: Record<string, unknown> | null;
+
   @Column({ nullable: true })
   performedById!: number;
 
